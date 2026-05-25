@@ -86,9 +86,17 @@ impl ApplicationHandler<()> for App {
         if self.renderer.is_none() {
             if let Some(window) = &self.window {
                 let window_clone = window.clone();
-                // Note: In a real implementation, we'd use tokio or async runtime
-                // For now, we'll skip async initialization
-                eprintln!("Renderer initialization would happen here with async support");
+                
+                // Use pollster to run async initialization
+                match pollster::block_on(Renderer::new(&window_clone)) {
+                    Ok(renderer) => {
+                        println!("Renderer initialized successfully");
+                        self.renderer = Some(renderer);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to initialize renderer: {}", e);
+                    }
+                }
             }
         }
 
@@ -130,8 +138,42 @@ impl ApplicationHandler<()> for App {
                 // Step physics
                 self.physics.step(self.delta_time);
 
-                // Render frame (placeholder - full rendering needs async setup)
-                // In production: render scene with wgpu
+                // Render frame
+                if let Some(ref mut renderer) = self.renderer {
+                    // Get camera view-projection matrix
+                    let camera_entities = self.world.iter_entities_with_components(&["Camera", "Transform"]);
+                    if let Some(camera_entity) = camera_entities.first() {
+                        if let (Some(camera), Some(transform)) = (
+                            self.world.get_component::<engine::ecs::Camera>(*camera_entity),
+                            self.world.get_component::<engine::ecs::Transform>(*camera_entity),
+                        ) {
+                            let view_matrix = camera.view_matrix(transform);
+                            let proj_matrix = camera.projection_matrix();
+                            let view_proj = proj_matrix * view_matrix;
+                            
+                            renderer.update_uniforms(view_proj);
+                        }
+                    }
+
+                    // Begin render pass
+                    if let Some(mut encoder) = renderer.begin_render() {
+                        // Draw demo scene meshes
+                        let mesh_entities = self.world.iter_entities_with_components(&["MeshPrimitive", "Transform"]);
+                        for entity in mesh_entities {
+                            if let Some(mesh_type) = self.world.get_component::<engine::ecs::MeshPrimitive>(entity) {
+                                let color = match mesh_type {
+                                    engine::ecs::MeshPrimitive::Cube => [1.0, 0.5, 0.0],
+                                    engine::ecs::MeshPrimitive::Sphere => [0.0, 1.0, 0.5],
+                                    engine::ecs::MeshPrimitive::Plane => [0.5, 0.5, 0.5],
+                                    engine::ecs::MeshPrimitive::Cylinder => [0.5, 0.0, 1.0],
+                                };
+                                let mesh = engine::render::Mesh::cube(color);
+                                renderer.draw_mesh(&mut encoder, &mesh);
+                            }
+                        }
+                        renderer.end_render(encoder);
+                    }
+                }
 
                 // Request next frame
                 if let Some(window) = &self.window {
