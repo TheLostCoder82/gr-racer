@@ -1,21 +1,20 @@
 ```
-# Compiled and build artifacts
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.a
-*.out
+# Rust/Cargo specific
+target/
+Cargo.lock
+*.rs.bk
+**/*.d
 
 # Dependencies
-target/
-**/target/
+vendor/
 
-# Logs and temp files
+# Logs
 *.log
+
+# Temporary files
 *.tmp
 *.swp
+*.swo
 
 # Environment
 .env
@@ -28,7 +27,7 @@ target/
 *.swp
 *.swo
 
-# Rust-specific
-Cargo.lock
-**/Cargo.lock
+# OS
+.DS_Store
+Thumbs.db
 ```
